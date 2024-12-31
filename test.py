@@ -16,9 +16,7 @@ client = TestClient(app)
     (19, {"is_prime": True}),
     (20, {"is_prime": False}),
 ])
-# Test case 1: Kiểm tra route /get_version trả về phiên bản đúng
-def test_get_version():
-    response = client.get("/get_version")
+def test_check_prime(number, expected):
+    response = client.get(f"/check_prime/{number}")
     assert response.status_code == 200
-    assert response.json() == {"version": "1.0"}
-
+    assert response.json() == expected
