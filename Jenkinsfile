@@ -28,7 +28,7 @@ pipeline {
 
         stage('Clone Repository') {
             steps {
-                git branch: "main", url: 'https://github.com/Swcyenh/Jenkin-MLops.git'
+                git branch: "main", url: 'https://github.com/phuc-blt/Jenkins_test.git'
             }
         }
 
