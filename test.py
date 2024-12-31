@@ -1,48 +1,22 @@
-import requests
+import pytest
+from fastapi.testclient import TestClient
+from Api import app  # Import your FastAPI app test 4
 
-link = "http://127.0.0.1:80"
+client = TestClient(app)
 
-def test_check_prime_1():
-    response = requests.get(f"{link}/check_prime/1")
+@pytest.mark.parametrize("number,expected", [
+    (1, {"is_prime": False}),
+    (2, {"is_prime": True}),
+    (3, {"is_prime": True}),
+    (4, {"is_prime": False}),
+    (5, {"is_prime": True}),
+    (10, {"is_prime": False}),
+    (13, {"is_prime": True}),
+    (17, {"is_prime": True}),
+    (19, {"is_prime": True}),
+    (20, {"is_prime": False}),
+])
+def test_check_prime(number, expected):
+    response = client.get(f"/check_prime/{number}")
     assert response.status_code == 200
-    assert response.json() == {"is_prime": False}
-
-def test_check_prime_2():
-    response = client.get("/check_prime/2")
-    assert response.status_code == 200
-    assert response.json() == {"is_prime": True}
-
-def test_check_prime_3():
-    response = client.get("/check_prime/3")
-    assert response.status_code == 200
-    assert response.json() == {"is_prime": True}
-
-def test_check_prime_4():
-    response = client.get("/check_prime/4")
-    assert response.status_code == 200
-    assert response.json() == {"is_prime": False}
-
-def test_check_prime_5():
-    response = client.get("/check_prime/5")
-    assert response.status_code == 200
-    assert response.json() == {"is_prime": True}
-
-def test_check_prime_10():
-    response = client.get("/check_prime/10")
-    assert response.status_code == 200
-    assert response.json() == {"is_prime": False}
-
-def test_check_prime_11():
-    response = client.get("/check_prime/11")
-    assert response.status_code == 200
-    assert response.json() == {"is_prime": True}
-
-def test_check_prime_13():
-    response = client.get("/check_prime/13")
-    assert response.status_code == 200
-    assert response.json() == {"is_prime": True}
-
-def test_check_prime_15():
-    response = client.get("/check_prime/15")
-    assert response.status_code == 200
-    assert response.json() == {"is_prime": False}
+    assert response.json() == expected
