@@ -1,6 +1,12 @@
 pipeline {
     agent any
-
+    environment {
+        GITHUB_WEBHOOK_URL = 'https://bbc0-115-76-50-187.ngrok-free.app/github-webhook/'
+        REPO_URL = 'https://github.com/phuc-blt/Jenkins_test.git'
+        BRANCH_NAME = 'main'
+        DOCKER_IMAGE = 'fastapi-app'
+        CONTAINER_NAME = 'fastapi-app-container'
+    }
     triggers {
         GenericTrigger(
             genericVariables: [
@@ -12,92 +18,77 @@ pipeline {
             printPostContent: true
         )
     }
-
     options {
         skipDefaultCheckout() // Prevent automatic checkout
     }
 
     stages {
-        stage('Start Pipeline') {
+        stage('Checkout') {
             steps {
-                withChecks('Run FastAPI App') {
-                    publishChecks name: 'Run FastAPI App', status: 'IN_PROGRESS', summary: 'Pipeline execution has started.'
+                script {
+                    githubChecks(name: 'Checkout', status: 'IN_PROGRESS', summary: 'Cloning repository...')
+                }
+                git branch: env.BRANCH_NAME, url: env.REPO_URL
+                script {
+                    githubChecks(name: 'Checkout', status: 'COMPLETED', conclusion: 'SUCCESS', summary: 'Repository cloned successfully.')
                 }
             }
         }
-
-        stage('Clone Repository') {
-            steps {
-                git branch: "main", url: 'https://github.com/phuc-blt/Jenkins_test.git'
-            }
-        }
-
-        stage('Run FastAPI Application') {
+        stage('Build Docker Image') {
             steps {
                 script {
-                    try {
-                        sh '''
-                        #!/bin/bash
-
-                        # Check if the container already exists
-                        if docker ps -a --format '{{.Names}}' | grep -q "^api_running$"; then
-                            echo "Container 'api_running' already exists. Removing it..."
-                            docker stop api_running
-                            docker rm -f api_running
-                        fi
-
-                        # Remove existing Docker image
-                        if docker images | grep -q "api"; then
-                            echo "Removing existing Docker image..."
-                            docker rmi -f api
-                        fi
-
-                        # Build and run the FastAPI container
-                        echo "Building the Docker image..."
-                        docker build -t api .
-
-                        echo "Running the Docker container..."
-                        docker run --name api_running -p 80:80 -d api
-                        '''
-
-                        withChecks('Run FastAPI App') {
-                            publishChecks name: 'Run FastAPI App', status: 'COMPLETED', conclusion: 'SUCCESS',
-                                         summary: 'FastAPI container built and running successfully.'
-                        }
-                    } catch (e) {
-                        withChecks('Run FastAPI App') {
-                            publishChecks name: 'Run FastAPI App', status: 'COMPLETED', conclusion: 'FAILURE',
-                                         summary: 'Pipeline failed while running the FastAPI container.'
-                        }
-                        throw e
-                    }
+                    githubChecks(name: 'Build Docker Image', status: 'IN_PROGRESS', summary: 'Building Docker image...')
+                }
+                sh "docker build -t ${env.DOCKER_IMAGE} ."
+                script {
+                    githubChecks(name: 'Build Docker Image', status: 'COMPLETED', conclusion: 'SUCCESS', summary: 'Docker image built successfully.')
+                }
+            }
+        }
+        stage('Run Docker Container') {
+            steps {
+                script {
+                    githubChecks(name: 'Run Docker Container', status: 'IN_PROGRESS', summary: 'Starting Docker container...')
+                }
+                sh """
+                docker stop ${env.CONTAINER_NAME} || true
+                docker rm ${env.CONTAINER_NAME} || true
+                docker run -d -p 8080:8080 --name ${env.CONTAINER_NAME} ${env.DOCKER_IMAGE}
+                """
+                script {
+                    githubChecks(name: 'Run Docker Container', status: 'COMPLETED', conclusion: 'SUCCESS', summary: 'Docker container started successfully.')
+                }
+            }
+        }
+        stage('Notify GitHub via Webhook') {
+            steps {
+                script {
+                    githubChecks(name: 'Notify GitHub', status: 'IN_PROGRESS', summary: 'Notifying GitHub via webhook...')
+                }
+                sh """
+                curl -X POST -H "Content-Type: application/json" \
+                -d '{"state": "success", "description": "Pipeline is running", "context": "ci/jenkins"}' \
+                ${env.GITHUB_WEBHOOK_URL}
+                """
+                script {
+                    githubChecks(name: 'Notify GitHub', status: 'COMPLETED', conclusion: 'SUCCESS', summary: 'GitHub notified successfully.')
                 }
             }
         }
         stage('Run Tests') {
             steps {
                 script {
-                    try {
-                        sh '''
-                        # Run tests
-                        pytest --junitxml=test-results.xml
-                        '''
-                        withChecks('Run Tests') {
-                            publishChecks name: 'Run Tests', status: 'COMPLETED', conclusion: 'SUCCESS',
-                                         summary: 'All tests passed successfully.'
-                        }
-                    } catch (e) {
-                        withChecks('Run Tests') {
-                            publishChecks name: 'Run Tests', status: 'COMPLETED', conclusion: 'FAILURE',
-                                         summary: 'Some tests failed.'
-                        }
-                        throw e
-                    }
+                    githubChecks(name: 'Run Tests', status: 'IN_PROGRESS', summary: 'Running tests...')
+                }
+                sh """
+                docker exec ${env.CONTAINER_NAME} pytest /app/tests/
+                """
+                script {
+                    githubChecks(name: 'Run Tests', status: 'COMPLETED', conclusion: 'SUCCESS', summary: 'Tests completed successfully.')
                 }
             }
         }
     }
-
     post {
         always {
             withChecks('Run FastAPI App') {
